@@ -23,7 +23,20 @@
 #include <stdexcept>
 #include <string>
 
-// Ref: https://cdn-shop.adafruit.com/datasheets/PCA9685.pdf
+// NOTES:
+//
+// Right now, this implementation assumes a single I2C board on the
+// system (or, more accurately, a single user of the I2C device file).
+// Changes would need to be made in order to account for multiple I2C
+// users (e.g. convert each Pca9685 to a *Node* or convert this file
+// to behave properly in the presence of multiple users... non-blocking
+// calls, etc).
+//
+//    See: https://www.spinics.net/lists/linux-i2c/msg17264.html
+//    And: https://stackoverflow.com/a/41187358
+//
+// For hardware specs, register values, and general board behavior:
+//    Ref: https://cdn-shop.adafruit.com/datasheets/PCA9685.pdf
 
 namespace {
 
@@ -52,33 +65,53 @@ const uint8_t DEFAULT_MODE2_MASK = 0x04;
 // Documentation states "at least" 500us
 const struct timespec OSC_STABILIZATION_DELAY = { 0, 6000000L };
 
+const uint8_t LOWER_BYTE_MASK = 0xFF;
+const uint8_t UPPER_BYTE_SHIFT = 8;
+
 }  // namespace
 
 namespace i2c_pwm {
 
-Pca9685Impl::Pca9685Impl(const std::string &deviceFile, const int address)
-  : fd_(::open(deviceFile.c_str(), O_RDWR)),
+Pca9685Impl::Pca9685Impl(const std::string &deviceFile,
+                         const int address,
+                         bool autoInitialize)
+  : deviceFilePath_(deviceFile),
     address_(address),
+    fd_(0),
+    frequencyHz_(0),
     logger_(rclcpp::get_logger("i2c_pwm.Pca9685"))
 {
-  if (fd_ < 0) {
-    std::ostringstream ostr;
-    ostr << "Unable to open I2C device file: " << deviceFile;
-    throw std::runtime_error(ostr.str());
-  }
-
-  Pca9685Impl::write(REGISTER_MODE1, DEFAULT_MODE1_MASK);
-  Pca9685Impl::write(REGISTER_MODE2, DEFAULT_MODE2_MASK);
-
-  // Initialize all servo channels to 0
-  for (uint8_t i = 0; i < NUM_CHANNELS; ++i) {
-    Pca9685Impl::writeChannel(i, 0);
+  if (autoInitialize) {
+    Pca9685Impl::initialize();
   }
 }
 
 Pca9685Impl::~Pca9685Impl()
 {
-  ::close(fd_);
+  if (fd_ != 0) {
+    ::close(fd_);
+  }
+}
+
+void Pca9685Impl::initialize()
+{
+  if (fd_ == 0) {
+    fd_ = ::open(deviceFilePath_.c_str(), O_RDWR);  // | O_NONBLOCK);
+
+    if (fd_ < 0) {
+      std::ostringstream ostr;
+      ostr << "Unable to open I2C device file: " << deviceFilePath_;
+      throw std::runtime_error(ostr.str());
+    }
+
+    write(REGISTER_MODE1, DEFAULT_MODE1_MASK);
+    write(REGISTER_MODE2, DEFAULT_MODE2_MASK);
+
+    // Initialize all servo channels to 0
+    for (uint8_t i = 0; i < NUM_CHANNELS; ++i) {
+      writeChannel(i, 0);
+    }
+  }
 }
 
 void Pca9685Impl::sleepMode(bool value)
@@ -195,7 +228,14 @@ void Pca9685Impl::write(uint8_t reg, uint8_t data)
   }
 }
 
-void Pca9685Impl::writeChannel(uint8_t channel, uint16_t value)
+void Pca9685Impl::writeChannel(uint8_t channel, uint16_t offValue)
+{
+  writeChannel(channel, 0, offValue);
+}
+
+void Pca9685Impl::writeChannel(uint8_t channel,
+                               uint16_t onValue,
+                               uint16_t offValue)
 {
   if (channel > NUM_CHANNELS) {
     std::ostringstream ostr;
@@ -203,18 +243,28 @@ void Pca9685Impl::writeChannel(uint8_t channel, uint16_t value)
     throw std::runtime_error(ostr.str());
   }
 
-  if (value > MAX_VALUE) {
+  if (offValue > MAX_VALUE) {
     std::ostringstream ostr;
-    ostr << "Value out of range: " << value;
+    ostr << "Value out of range: " << offValue;
+    throw std::runtime_error(ostr.str());
+  }
+
+  if (offValue < onValue) {
+    std::ostringstream ostr;
+    ostr << "Invalid onValue/offValue combination: "
+         << onValue
+         << ", "
+         << offValue;
     throw std::runtime_error(ostr.str());
   }
 
   const int channelOffset = channel * 4;
 
-  write(REGISTER_CHANNEL0_ON_LOW + channelOffset, 0);
-  write(REGISTER_CHANNEL0_ON_HIGH + channelOffset, 0);
-  write(REGISTER_CHANNEL0_OFF_LOW + channelOffset, value & 0xFF);
-  write(REGISTER_CHANNEL0_OFF_HIGH + channelOffset, value >> 8);
+  write(REGISTER_CHANNEL0_ON_LOW + channelOffset, onValue & LOWER_BYTE_MASK);
+  write(REGISTER_CHANNEL0_ON_HIGH + channelOffset, onValue >> UPPER_BYTE_SHIFT);
+  write(REGISTER_CHANNEL0_OFF_LOW + channelOffset, offValue & LOWER_BYTE_MASK);
+  write(REGISTER_CHANNEL0_OFF_HIGH + channelOffset,
+        offValue >> UPPER_BYTE_SHIFT);
 }
 
 }  // namespace i2c_pwm

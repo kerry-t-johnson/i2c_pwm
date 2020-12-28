@@ -14,29 +14,36 @@
 #ifndef PCA9685IMPL_HPP_
 #define PCA9685IMPL_HPP_
 
-#include <Pca9685.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <memory>
 #include <string>
+#include "i2c_pwm/Pca9685.hpp"
 
 namespace i2c_pwm {
 
 class Pca9685Impl: public Pca9685
 {
 public:
-  Pca9685Impl(const std::string &deviceFile, const int address);
+  Pca9685Impl(const std::string &deviceFile,
+              const int address,
+              bool autoInitialize = true);
   virtual ~Pca9685Impl();
 
-  virtual void sleepMode(bool value);
-  virtual void setFrequencyHz(uint16_t value);
+  void initialize() override;
 
-  virtual uint8_t read(uint8_t reg) const;
-  virtual void write(uint8_t reg, uint8_t data);
-  virtual void writeChannel(uint8_t channel, uint16_t data);
+  void sleepMode(bool value) override;
+  void setFrequencyHz(uint16_t value) override;
+
+  uint8_t read(uint8_t reg) const override;
+  void write(uint8_t reg, uint8_t data) override;
+  void writeChannel(uint8_t channel, uint16_t offValue) override;
+  void writeChannel(uint8_t channel, uint16_t onValue, uint16_t offValue)
+    override;
 
 private:
-  const int fd_;
+  const std::string deviceFilePath_;
   const int address_;
+  int fd_;
   uint8_t frequencyHz_;
   rclcpp::Logger logger_;
 };

@@ -11,40 +11,39 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef SERVOMANAGER_HPP_
-#define SERVOMANAGER_HPP_
+#ifndef PCA9685MOCK_HPP_
+#define PCA9685MOCK_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 #include <stdint.h>
-#include <map>
-#include <memory>
-#include <string>
-#include <vector>
+#include "i2c_pwm/Pca9685.hpp"
 
 namespace i2c_pwm {
 
-class Servo;
-class Pca9685;
-
-class ServoManager
+class Pca9685Mock: public Pca9685
 {
 public:
-  ServoManager();
-  virtual ~ServoManager();
+  Pca9685Mock(const std::string &deviceFile,
+              const int address,
+              bool autoInitialize);
+  virtual ~Pca9685Mock();
 
-  void setAll(uint16_t value);
-  void setAll(float value);
+  void initialize() override;
 
-  void addPca9685(uint8_t id, const std::string &deviceFile, const int address);
-  void addServo(uint16_t id);
-  void setServo(uint16_t id, uint16_t data);
+  void sleepMode(bool value) override;
+  void setFrequencyHz(uint16_t value) override;
+
+  uint8_t read(uint8_t reg) const override;
+  void write(uint8_t reg, uint8_t data) override;
+  void writeChannel(uint8_t channel, uint16_t offValue) override;
+  void writeChannel(uint8_t channel, uint16_t onValue, uint16_t offValue)
+    override;
 
 private:
-  std::vector<std::shared_ptr<Pca9685>> pcaBoards_;
-  std::map<uint16_t, std::shared_ptr<Servo>> servos_;
   rclcpp::Logger logger_;
+
 };
 
 }  // namespace i2c_pwm
 
-#endif  // SERVOMANAGER_HPP_
+#endif /* PCA9685MOCK_HPP_ */
