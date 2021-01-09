@@ -43,6 +43,11 @@ public:
   virtual void initialize() = 0;
 
   /**
+   * Stops all servos.
+   */
+  virtual void allStop() = 0;
+
+  /**
    * Enables or disables low power (sleep) mode.
    *
    * Low power mode turns off the oscillator.  PWM control is disabled

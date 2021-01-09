@@ -31,6 +31,11 @@ void Pca9685Mock::initialize()
   RCLCPP_INFO(logger_, "Pca9685Mock::initialize()");
 }
 
+void Pca9685Mock::allStop()
+{
+  RCLCPP_INFO(logger_, "Pca9685Mock::allStop()");
+}
+
 void Pca9685Mock::sleepMode(bool value)
 {
   RCLCPP_INFO(logger_,

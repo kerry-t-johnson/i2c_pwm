@@ -30,6 +30,7 @@ public:
   virtual ~Pca9685Impl();
 
   void initialize() override;
+  void allStop() override;
 
   void sleepMode(bool value) override;
   void setFrequencyHz(uint16_t value) override;
@@ -41,10 +42,14 @@ public:
     override;
 
 private:
+
+  float pulseWidthToMillis(uint16_t pulseCounts) const;
+
   const std::string deviceFilePath_;
   const int address_;
   int fd_;
   uint8_t frequencyHz_;
+  float frequencyScale_;
   rclcpp::Logger logger_;
 };
 

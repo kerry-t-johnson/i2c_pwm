@@ -29,6 +29,7 @@ public:
   virtual ~Pca9685Mock();
 
   void initialize() override;
+  void allStop() override;
 
   void sleepMode(bool value) override;
   void setFrequencyHz(uint16_t value) override;
